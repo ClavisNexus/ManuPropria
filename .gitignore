@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+*.tgz
+.env
+.env.*
+!.env.example
+.DS_Store
+signed-calls.jsonl
+.pnpm-store/

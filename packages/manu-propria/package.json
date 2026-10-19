@@ -1,0 +1,75 @@
+{
+  "name": "@clavis.nexus/manu-propria",
+  "version": "1.0.0",
+  "description": "Run what an agent, a tool or a job asks for only after the person signs it with their passkey on Clavis",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ClavisNexus/ManuPropria.git",
+    "directory": "packages/manu-propria"
+  },
+  "homepage": "https://github.com/ClavisNexus/ManuPropria#readme",
+  "bugs": "https://github.com/ClavisNexus/ManuPropria/issues",
+  "keywords": [
+    "clavis",
+    "passkey",
+    "webauthn",
+    "signature",
+    "mcp",
+    "model-context-protocol",
+    "agent",
+    "human-in-the-loop"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "README.ja.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clavis.nexus/app": "^2.1.0"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/server": "^2.3.1"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/server": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/server": "2.3.1",
+    "@types/node": "22.20.5",
+    "jose": "6.2.3",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11",
+    "zod": "4.6.7"
+  }
+}
