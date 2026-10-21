@@ -1,3 +1,11 @@
 packages:
   - "packages/*"
   - "examples/*"
+
+# 7 days. Install-time block; scripts/audit-min-release-age.mjs is the CI double-check.
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+# Published by its maintainer without provenance after earlier-published versions had it (pnpm judges by publish date).
+trustPolicyExclude:
+  - "undici-types@6.21.0"
+blockExoticSubdeps: true
