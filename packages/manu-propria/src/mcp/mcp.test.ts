@@ -3,9 +3,10 @@ import { Client, InMemoryTransport, StreamableHTTPClientTransport } from "@model
 import { createMcpHandler, createRequestStateCodec, McpServer } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
 import * as z from "zod";
-import { gateWithRuntime, type SignedCall } from "../gate.js";
+import type { SignedCall } from "../gate.js";
 import { memoryStore } from "../store.js";
 import { fakeClavis } from "../test-support/fake-clavis.js";
+import { createSignatureGateForTest } from "../test-support/gate.js";
 import { requireSignatures, SIGNATURE_META_KEY, type RequireSignaturesOptions } from "./index.js";
 
 type UrlRequest = { message: string; url: string };
@@ -21,7 +22,7 @@ afterEach(async () => {
 function harness(options: Partial<RequireSignaturesOptions> & { codec?: boolean } = {}) {
   const clavis = fakeClavis();
   let at = 1_791_747_000_000;
-  const gate = gateWithRuntime(
+  const gate = createSignatureGateForTest(
     { app: clavis.app, store: memoryStore() },
     {
       now: () => at,

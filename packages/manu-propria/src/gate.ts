@@ -158,11 +158,11 @@ function checkOptions(options: SignatureGateOptions): { ttlSeconds: number; poll
  * ```
  */
 export function createSignatureGate(options: SignatureGateOptions): SignatureGate {
-  return gateWithRuntime(options, realRuntime);
+  const runtime = (options as SignatureGateOptions & { runtime?: Runtime }).runtime ?? realRuntime;
+  return gateWithRuntime(options, runtime);
 }
 
-/** @internal The gate on a given clock. Not exported from the package. */
-export function gateWithRuntime(options: SignatureGateOptions, runtime: Runtime): SignatureGate {
+function gateWithRuntime(options: SignatureGateOptions, runtime: Runtime): SignatureGate {
   const { ttlSeconds, pollIntervalMs, returnUrl } = checkOptions(options);
   const { app, store } = options;
   // A started signature can finish after the request lapses, and stays readable for the result window

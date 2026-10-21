@@ -68,7 +68,7 @@ serveStdio(() => {
 });
 ```
 
-`signed.registerTool` は `McpServer.registerTool` と同じものを受け、`show` を加えます。ハンドラの第三引数は、署名された呼び出しです。動くサーバは [`examples/mcp-stdio`](../../examples/mcp-stdio) にあります。
+`signed.registerTool` は `McpServer.registerTool` と同じものを受け、`show` を加えます。ハンドラの第三引数は、署名された呼び出しです。
 
 エージェントが `grant_role` を呼ぶと、次のように進みます。
 

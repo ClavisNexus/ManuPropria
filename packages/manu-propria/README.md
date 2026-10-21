@@ -68,7 +68,7 @@ serveStdio(() => {
 });
 ```
 
-`signed.registerTool` takes what `McpServer.registerTool` takes, plus `show`. The handler gets a third argument, the signed call. A runnable server is in [`examples/mcp-stdio`](../../examples/mcp-stdio).
+`signed.registerTool` takes what `McpServer.registerTool` takes, plus `show`. The handler gets a third argument, the signed call.
 
 When the agent calls `grant_role`:
 

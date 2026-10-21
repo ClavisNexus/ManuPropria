@@ -2,9 +2,10 @@ import { AppClientError } from "@clavis.nexus/app";
 import { describe, expect, it } from "vitest";
 import type { Call } from "./call.js";
 import { messageDigestOf, prepareCall } from "./call.js";
-import { createSignatureGate, gateWithRuntime, type SignatureOutcome } from "./gate.js";
+import { createSignatureGate, type SignatureOutcome } from "./gate.js";
 import { memoryStore, type SignatureStore } from "./store.js";
 import { fakeClavis } from "./test-support/fake-clavis.js";
+import { createSignatureGateForTest } from "./test-support/gate.js";
 
 const call: Call = {
   name: "refund",
@@ -32,7 +33,7 @@ function setup(options: { store?: SignatureStore; ttlSeconds?: number; returnUrl
   const clavis = fakeClavis();
   const store = options.store ?? memoryStore();
   const clock = virtualClock();
-  const gate = gateWithRuntime({ app: clavis.app, store, ...options }, clock);
+  const gate = createSignatureGateForTest({ app: clavis.app, store, ...options }, clock);
   return { clavis, store, gate, clock };
 }
 
@@ -146,7 +147,7 @@ describe("signatureFor", () => {
     const clavis = fakeClavis();
     const controller = new AbortController();
     let sleeping: () => void = () => undefined;
-    const gate = gateWithRuntime(
+    const gate = createSignatureGateForTest(
       { app: clavis.app, store: memoryStore() },
       {
         now: () => 0,
