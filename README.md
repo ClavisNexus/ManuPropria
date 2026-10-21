@@ -23,6 +23,16 @@ pnpm test
 
 Node.js 20 or later for the package; the example runs its TypeScript directly and needs Node.js 22.18 or later.
 
+## Release
+
+`.github/workflows/publish.yml` publishes through npm trusted publishing; no npm token is used. Raise `version` in `packages/manu-propria/package.json` on `main`, then tag that commit:
+
+```bash
+git tag manu-propria-v1.0.1 && git push origin manu-propria-v1.0.1
+```
+
+The workflow stages the package on npm. Before approving it with 2FA under Staged Packages on npmjs.com, check that the commit in the run's summary is on `main` and that the integrity of the `stage` job matches the one npmjs.com shows. The trusted publisher on npm allows staging only.
+
 ## Security
 
 Report a vulnerability to security@clavis.nexus. The policy is at [legal.clavis.nexus/en/security](https://legal.clavis.nexus/en/security).

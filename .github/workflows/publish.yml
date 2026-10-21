@@ -1,0 +1,101 @@
+name: publish
+
+# A tag manu-propria-v<X.Y.Z> on main stages @clavis.nexus/manu-propria on npm
+# through trusted publishing. Nothing goes live until a maintainer approves the staged package with
+# 2FA on npmjs.com. Dependencies run only in the pack job; the stage job holds the OIDC token and
+# runs nothing but npm on the packed tarball.
+on:
+  push:
+    tags:
+      - "manu-propria-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      name: ${{ steps.tag.outputs.name }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.34.4
+      # No dependency cache in a release build
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - id: tag
+        run: node scripts/release-check.mjs tag "$GITHUB_REF_NAME"
+      - run: node scripts/audit-min-release-age.mjs
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @clavis.nexus/manu-propria build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Pack
+        env:
+          NAME: ${{ steps.tag.outputs.name }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/dist"
+          pnpm --filter "$NAME" pack --pack-destination "$RUNNER_TEMP/dist"
+          set -- "$RUNNER_TEMP"/dist/*.tgz
+          [ "$#" -eq 1 ] && [ -f "$1" ] || { echo "expected one tarball in $RUNNER_TEMP/dist"; exit 1; }
+          mv "$1" "$RUNNER_TEMP/dist/package.tgz"
+          node scripts/release-check.mjs tarball "$RUNNER_TEMP/dist/package.tgz" "$NAME" "$VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/dist/package.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  stage:
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/dist
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # npm stage publish with trusted publishing needs npm 11.15.0 or later
+      - run: |
+          npm --version
+          node -e 'const [a,b]=process.argv[1].split(".").map(Number);process.exit(a>11||(a===11&&b>=15)?0:1)' "$(npm --version)"
+      - name: Stage on npm
+        env:
+          NAME: ${{ needs.pack.outputs.name }}
+          VERSION: ${{ needs.pack.outputs.version }}
+        working-directory: ${{ runner.temp }}/dist
+        # The integrity is taken here, where no dependency code has run, for comparison on npmjs.com
+        run: |
+          integrity="sha512-$(openssl dgst -sha512 -binary package.tgz | base64 -w0)"
+          echo "$integrity"
+          npm stage publish ./package.tgz --access public --ignore-scripts
+          {
+            echo "### Staged $NAME@$VERSION"
+            echo ""
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- integrity: \`$integrity\`"
+            echo ""
+            echo "Approve it with 2FA under Staged Packages on npmjs.com."
+          } >> "$GITHUB_STEP_SUMMARY"
