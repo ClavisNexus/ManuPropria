@@ -1,6 +1,6 @@
 {
   "name": "@clavis.nexus/manu-propria",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Run what an agent, a tool or a job asks for only after the person signs it with their passkey on Clavis",
   "type": "module",
   "license": "MIT",
