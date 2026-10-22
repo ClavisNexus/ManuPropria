@@ -24,7 +24,7 @@ npm install @clavis.nexus/manu-propria @clavis.nexus/app
 npm install @modelcontextprotocol/server
 ```
 
-Node.js 20 以上で動きます。署名を購読している組織（Org）と、ホストの確認を済ませた App が要ります。手順は [Quickstart](https://docs.clavis.nexus/ja/quickstart) にあります。
+Node.js 22 以上で動きます。署名を購読している組織（Org）と、ホストの確認を済ませた App が要ります。手順は [Quickstart](https://docs.clavis.nexus/ja/quickstart) にあります。
 
 ## MCP サーバ
 

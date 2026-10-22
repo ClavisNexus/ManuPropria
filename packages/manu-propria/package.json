@@ -22,7 +22,7 @@
     "human-in-the-loop"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "sideEffects": false,
   "main": "./dist/index.js",
