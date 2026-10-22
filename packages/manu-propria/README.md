@@ -24,7 +24,7 @@ npm install @clavis.nexus/manu-propria @clavis.nexus/app
 npm install @modelcontextprotocol/server
 ```
 
-Node.js 22 or later. You need a Clavis organisation that subscribes to Signature and an app whose host is confirmed; the steps are in the [Quickstart](https://docs.clavis.nexus/en/quickstart).
+Node.js 24 or later. You need a Clavis organisation that subscribes to Signature and an app whose host is confirmed; the steps are in the [Quickstart](https://docs.clavis.nexus/en/quickstart).
 
 ## MCP servers
 
