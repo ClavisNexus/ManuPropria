@@ -7,6 +7,10 @@ updates:
       day: monday
     cooldown:
       default-days: 7
+    ignore:
+      # Types for the oldest Node.js in engines, so APIs it lacks fail typecheck
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

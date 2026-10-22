@@ -21,7 +21,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Node.js 20 or later for the package; the example runs its TypeScript directly and needs Node.js 22.18 or later.
+Node.js 22 or later for the package; the example runs its TypeScript directly and needs Node.js 22.18 or later.
 
 ## Release
 
