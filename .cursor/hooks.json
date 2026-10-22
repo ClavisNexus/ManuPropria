@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".githooks/agent-guard.sh cursor",
+        "matcher": "git|gh",
+        "timeout": 10
+      }
+    ]
+  }
+}

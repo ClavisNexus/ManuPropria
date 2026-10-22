@@ -9,3 +9,8 @@ dist/
 .DS_Store
 signed-calls.jsonl
 .pnpm-store/
+
+# Agent worktrees and per-machine agent settings (AGENTS.md, Git)
+.worktrees/
+.claude/worktrees/
+.claude/settings.local.json
