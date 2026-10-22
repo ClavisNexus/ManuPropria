@@ -25,7 +25,7 @@ Node.js 24 or later, for both the package and the example, which runs its TypeSc
 
 ## Release
 
-`.github/workflows/publish.yml` publishes through npm trusted publishing; no npm token is used. Raise `version` in `packages/manu-propria/package.json` on `main`, then tag that commit:
+`.github/workflows/publish.yml` publishes through npm trusted publishing; no npm token is used. Raise `version` in `packages/manu-propria/package.json` through a pull request to `main`, then, once its checks on `main` have passed, tag the merged commit:
 
 ```bash
 git tag manu-propria-v1.0.1 && git push origin manu-propria-v1.0.1

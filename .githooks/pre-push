@@ -1,0 +1,56 @@
+#!/bin/sh
+# Refuses, before anything leaves this machine, the pushes the rulesets refuse anyway, and tags
+# whose commit is not on main with every check run finished and passing.
+# Enabled per clone with: git config core.hooksPath .githooks
+
+remote="$1"
+zero=0000000000000000000000000000000000000000
+status=0
+
+deny() {
+  echo "pre-push: $1" >&2
+  status=1
+}
+
+repo=$(git remote get-url "$remote" 2>/dev/null | sed -E 's#^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)##; s#\.git$##')
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      deny "main takes changes only through a pull request ($local_ref)."
+      ;;
+    refs/tags/*)
+      tag=${remote_ref#refs/tags/}
+      if [ "$local_sha" = "$zero" ]; then
+        deny "tag $tag is not deleted once pushed."
+        continue
+      fi
+      if [ "$remote_sha" != "$zero" ]; then
+        deny "tag $tag is not moved once pushed."
+        continue
+      fi
+      commit=$(git rev-parse "$local_sha^{commit}") || { deny "tag $tag does not name a commit."; continue; }
+      if ! git fetch -q "$remote" refs/heads/main || ! git merge-base --is-ancestor "$commit" FETCH_HEAD; then
+        deny "tag $tag names $commit, which is not on $remote's main."
+        continue
+      fi
+      if ! command -v gh >/dev/null 2>&1 || [ -z "$repo" ]; then
+        deny "tag $tag: cannot read the check runs of $commit without gh and a GitHub remote."
+        continue
+      fi
+      # Prints the number of runs, then the number not finished or not passing.
+      counts=$(gh api "repos/$repo/commits/$commit/check-runs?per_page=100" \
+        --jq '[.check_runs | length, ([.[] | select(.status != "completed" or ((.conclusion // "") | IN("success", "skipped", "neutral") | not))] | length)] | @tsv') \
+        || { deny "tag $tag: could not read the check runs of $commit."; continue; }
+      total=$(printf '%s' "$counts" | cut -f1)
+      bad=$(printf '%s' "$counts" | cut -f2)
+      if [ "$total" = "0" ]; then
+        deny "tag $tag: $commit has no check runs yet; wait for main's CI."
+      elif [ "$bad" != "0" ]; then
+        deny "tag $tag: $bad of $total check runs on $commit are still running or did not pass; wait or fix main."
+      fi
+      ;;
+  esac
+done
+
+exit $status

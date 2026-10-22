@@ -1,0 +1,34 @@
+name: Agent watch
+
+# Lists every week what a person reads after the fact, since agents merge without a person's review
+# (AGENTS.md, Git). Turns red when a commit touched the agents' limits, a ruleset differs from
+# .github/rulesets.json, or merging is not squash only. Red means "something to read", not breakage.
+# On pull requests it checks only the rulesets and the merge settings.
+on:
+  schedule:
+    - cron: "41 0 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/agent-watch.yml
+      - .github/agent-watch.sh
+      - .github/rulesets.json
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Watch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          WATCH_PATHS: .github .githooks .claude .cursor AGENTS.md CLAUDE.md scripts/release-check.mjs scripts/audit-min-release-age.mjs
+        run: bash .github/agent-watch.sh
