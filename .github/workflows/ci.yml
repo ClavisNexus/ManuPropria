@@ -58,6 +58,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - run: node .github/public-surface.mjs
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @clavis.nexus/manu-propria build
       - run: pnpm typecheck

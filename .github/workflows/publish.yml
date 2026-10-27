@@ -54,6 +54,11 @@ jobs:
           [ "$#" -eq 1 ] && [ -f "$1" ] || { echo "expected one tarball in $RUNNER_TEMP/dist"; exit 1; }
           mv "$1" "$RUNNER_TEMP/dist/package.tgz"
           node scripts/release-check.mjs tarball "$RUNNER_TEMP/dist/package.tgz" "$NAME" "$VERSION"
+      - name: Check what the package shows
+        run: |
+          mkdir -p "$RUNNER_TEMP/unpacked"
+          tar -xzf "$RUNNER_TEMP/dist/package.tgz" -C "$RUNNER_TEMP/unpacked"
+          node .github/public-surface.mjs --dir "$RUNNER_TEMP/unpacked/package"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package
