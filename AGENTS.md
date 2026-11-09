@@ -6,6 +6,7 @@ This repository is public, and so is what surrounds it: pull request titles and 
 
 - Write only what a stranger may read. No secrets, no contact details beyond the published ones, no paths on your machine.
 - Cite only what a reader can open from here: files in this repository, other public repositories by name, public pages. Not the design documents, section numbers or paths of private repositories.
+- Work that is not yet cleared for release, such as a new format, operation or behaviour that waits on a decision outside this repository, stays on a local branch. Do not push that branch, open a pull request, tag it or publish it until the release is cleared. A pushed branch stays readable through its commits after it is deleted, and the Actions run it starts keeps the branch name and the whole commit message.
 - `.github/public-surface.mjs` checks the files in CI and the packed tarball before it is staged. A reference outside this repository that may stay goes in `allowRefs` in `.github/public-surface.json`. What the script cannot know, such as internal names and plans, is listed in `docs/engineering/public-surfaces.md` in ClavisNexus. The script is the same in every public repository; change them together, on the same branch name.
 
 ## Git
