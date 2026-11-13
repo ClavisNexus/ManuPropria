@@ -64,12 +64,12 @@
     }
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.3.1",
-    "@modelcontextprotocol/server": "2.3.1",
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/server": "2.4.0",
     "@types/node": "24.19.2",
-    "jose": "6.2.12",
+    "jose": "6.2.13",
     "typescript": "7.0.2",
-    "vitest": "5.0.4",
+    "vitest": "5.0.5",
     "zod": "4.6.7"
   }
 }
