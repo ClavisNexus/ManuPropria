@@ -1,4 +1,4 @@
-import type { AppClient, AppReceipt, IntentStatusCompleted } from "@clavis.nexus/app";
+import type { AppClient, IntentStatusCompleted } from "@clavis.nexus/app";
 import { callDocument, messageDigestOf, prepareCall, type Call, type CallDocument, type PreparedCall } from "./call.js";
 import { SignatureGateError } from "./errors.js";
 import type { PendingSignature, SignatureStore } from "./store.js";
@@ -13,8 +13,11 @@ export type SignedCall = {
   signer: string;
   /** When they signed (Unix seconds). */
   signedAt: number;
-  /** The receipt Clavis countersigned (`receipt.app@1`). */
-  receipt: AppReceipt;
+  /**
+   * The receipt Clavis countersigned (`receipt.app@1`), as the string Clavis returned. Keep it as that string:
+   * `JSON.parse` folds duplicate keys into one, which the verifier would otherwise refuse.
+   */
+  receipt: string;
 };
 
 export type SignatureOutcome =
@@ -40,8 +43,8 @@ export type SignatureOutcome =
   | { state: "expired"; show: string };
 
 export type SignatureGateOptions = {
-  /** A client from `createAppClient` (`@clavis.nexus/app` 2.1 or later). */
-  app: Pick<AppClient, "registerGenericSign" | "getStatus">;
+  /** A client from `createAppClient` (`@clavis.nexus/app` 3.0.1 or later). */
+  app: Pick<AppClient, "registerGenericSign" | "getStatus"> & { verifier: Pick<AppClient["verifier"], "verifyReceipt"> };
   store: SignatureStore;
   /**
    * How long the person has to start signing, in seconds (60–900). 300 by default, which is also the default
@@ -92,6 +95,10 @@ type Observation =
   | { kind: "expired" }
   | { kind: "rate_limited" };
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
 function clientErrorStatus(error: unknown): number | undefined {
   // Duck-typed so a second copy of @clavis.nexus/app in the tree is still recognised
   const e = error as { name?: unknown; code?: unknown; status?: unknown } | null;
@@ -124,8 +131,13 @@ const realRuntime: Runtime = {
 
 function checkOptions(options: SignatureGateOptions): { ttlSeconds: number; pollIntervalMs: number; returnUrl?: string } {
   if (!options || typeof options !== "object") throw new SignatureGateError("invalid_options", "options required");
-  if (!options.app || typeof options.app.registerGenericSign !== "function" || typeof options.app.getStatus !== "function") {
-    throw new SignatureGateError("invalid_options", "app must be a client from createAppClient");
+  if (
+    !options.app ||
+    typeof options.app.registerGenericSign !== "function" ||
+    typeof options.app.getStatus !== "function" ||
+    typeof options.app.verifier?.verifyReceipt !== "function"
+  ) {
+    throw new SignatureGateError("invalid_options", "app must be a client from createAppClient (@clavis.nexus/app 3.0.1 or later)");
   }
   if (!options.store) throw new SignatureGateError("invalid_options", "store required (memoryStore() for a single process)");
   const ttlSeconds = options.ttlSeconds ?? DEFAULT_TTL_SECONDS;
@@ -222,12 +234,19 @@ function gateWithRuntime(options: SignatureGateOptions, runtime: Runtime): Signa
     }
   }
 
-  /** The completion, checked against the call: Clavis already checked the digest and the countersignature. */
-  function signedCall(record: PendingSignature, status: IntentStatusCompleted): SignedCall {
+  /**
+   * The completion, checked against the call. `getStatus` has had the verifier check the receipt, its digest and
+   * its request; the line Connect showed is read from the verifier's answer, not from the receipt's JSON.
+   */
+  async function signedCall(record: PendingSignature, status: IntentStatusCompleted): Promise<SignedCall> {
     if (status.sub !== record.document.signer) {
       throw new SignatureGateError("receipt_mismatch", "the receipt names a different signer than the request");
     }
-    const shown = status.receipt.envelope.ext?.["shown@1"] as { action?: unknown } | undefined;
+    const verified = await app.verifier.verifyReceipt(status.receipt, {
+      expect: { aud: `request:${record.requestId}` },
+      anchor: "skip",
+    });
+    const shown = asRecord(asRecord(verified.envelope.ext)?.["shown@1"]);
     if (shown?.action !== record.document.show) {
       throw new SignatureGateError("receipt_mismatch", "the receipt shows a different line than the call");
     }
@@ -261,10 +280,11 @@ function gateWithRuntime(options: SignatureGateOptions, runtime: Runtime): Signa
       if (seen.kind === "completed") {
         let signature: SignedCall;
         try {
-          signature = signedCall(record, seen.status);
+          signature = await signedCall(record, seen.status);
         } catch (e) {
-          // Do not keep a request whose completion cannot run; the next call opens a new one
-          await forgetIfCurrent(prepared.key, record.requestId);
+          // Do not keep a request whose completion cannot run; the next call opens a new one. An error from the
+          // verifier passes through and leaves the request, as one from getStatus does.
+          if (e instanceof SignatureGateError) await forgetIfCurrent(prepared.key, record.requestId);
           throw e;
         }
         // One signature authorizes one run. If it has run already, this call needs its own.

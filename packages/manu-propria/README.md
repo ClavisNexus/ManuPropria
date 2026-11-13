@@ -40,7 +40,7 @@ const app = createAppClient({
   apiOrigin: "https://api.clavis.nexus",
   appId: process.env.CLAVIS_APP_ID!,
   operatePrivateJwk: process.env.OPERATE_PRIVATE_JWK!,
-  masterPublicJwkJson: process.env.MASTER_PUBLIC_JWK_JSON!,
+  trustRoot: process.env.CLAVIS_TRUST_ROOT!, // Clavis's Master public JWK, published on docs.clavis.nexus
 });
 const gate = createSignatureGate({ app, store: memoryStore() });
 
@@ -154,7 +154,7 @@ for (;;) {
 
 | `createSignatureGate` option | Default | |
 |---|---|---|
-| `app` | | A client from `createAppClient` (`@clavis.nexus/app` 2.1 or later). |
+| `app` | | A client from `createAppClient` (`@clavis.nexus/app` 3.0.1 or later). |
 | `store` | | `memoryStore()` for one process; see [Stores](#stores). |
 | `ttlSeconds` | `300` | How long the user has to start signing, 60–900. More than 300 needs the app's limit raised on developers. |
 | `returnUrl` | none | Where Connect sends the user after signing (https, under your app's confirmed host). Without it the user finishes on Connect and goes back to the agent. |
@@ -198,23 +198,26 @@ On `signed`, keep the whole `SignedCall` with the operation's record:
   "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "signer": "…",
   "signedAt": 1791747759,
-  "receipt": { "type": "receipt.app@1", "…": "the receipt Clavis countersigned" }
+  "receipt": "{\"type\":\"receipt.app@1\",…}"
 }
 ```
 
-`verifySignedCall` checks a kept record without asking Clavis: the document hashes to the signed digest, the receipt names the same signer and the same line, and Clavis countersigned the receipt.
+`receipt` is the receipt Clavis countersigned (`receipt.app@1`), as the string Clavis returned. Keep it as that string; `JSON.parse` folds duplicate keys into one, which the verifier would otherwise refuse. `JSON.stringify` of the whole record keeps it intact.
+
+`verifySignedCall` checks a kept record without the app's operate key: the document hashes to the signed digest, the verifier of `@clavis.nexus/app` accepts the receipt as an app receipt for that request, and the receipt names the same signer and the same line.
 
 ```ts
-import { receiptKeysFromJwksDocument, verifySignedJwksDocument } from "@clavis.nexus/app";
+import { createVerifier } from "@clavis.nexus/app";
 import { verifySignedCall } from "@clavis.nexus/manu-propria";
 
-const jwks = await (await fetch("https://api.clavis.nexus/.well-known/jwks.json")).json();
-await verifySignedJwksDocument(jwks, process.env.MASTER_PUBLIC_JWK_JSON!);
-const result = await verifySignedCall(record, { receiptKeys: receiptKeysFromJwksDocument(jwks), appId });
+const verifier = createVerifier({ trustRoot: process.env.CLAVIS_TRUST_ROOT!, apiOrigin: "https://api.clavis.nexus" });
+const result = await verifySignedCall(record, { verifier, appId });
 // { ok: true, signature } or { ok: false, reason, detail? }
 ```
 
-`reason` is `shape`, `document`, `digest`, `signer`, `shown`, `signed_at` or `receipt` (with `detail` from the receipt check). The receipt's shape is in [Receipt](https://docs.clavis.nexus/en/signature#receipt).
+`app.verifier` of a client from `createAppClient` serves as well. The verifier reads Clavis's trust documents from the trust surface; the ledger's inclusion proof is not fetched. A verifier that cannot answer, for example when the trust surface is unreachable, throws its `AppClientError` instead of refusing the record.
+
+`reason` is `shape`, `document`, `digest`, `signer`, `shown`, `signed_at` or `receipt`. With `receipt`, `detail` is the verifier's reason, `type` (not an app receipt) or `app` (another app). The receipt's shape is in [Receipt](https://docs.clavis.nexus/en/signature#receipt).
 
 ## Waiting and limits
 

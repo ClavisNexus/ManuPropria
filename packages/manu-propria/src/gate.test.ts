@@ -83,7 +83,10 @@ describe("signatureFor", () => {
     expect(signature.signer).toBe("pw-alice");
     expect(signature.document).toMatchObject({ name: "refund", show: "Refund $120.00 on order 1042", signer: "pw-alice" });
     expect(await messageDigestOf(signature.document)).toBe(signature.messageDigest);
-    expect(signature.receipt.statement.digest).toBe(signature.messageDigest);
+    expect(typeof signature.receipt).toBe("string");
+    expect((await clavis.app.verifier.verifyReceipt(signature.receipt)).statement.digest).toBe(signature.messageDigest);
+    // The line was read from the verifier's answer for this request, without fetching the inclusion proof
+    expect(clavis.app.verifier.reads[0]).toEqual({ expect: { aud: `request:${signature.requestId}` }, anchor: "skip" });
   });
 
   it("lets one signature run once: the next identical call opens its own request", async () => {
@@ -191,6 +194,20 @@ describe("signatureFor", () => {
     }
   });
 
+  it("passes an error from the verifier through and keeps the request for the next call", async () => {
+    const { clavis, gate } = setup();
+    const first = awaiting(await gate.signatureFor(call));
+    clavis.sign();
+    const verifyReceipt = clavis.app.verifier.verifyReceipt;
+    clavis.app.verifier.verifyReceipt = async () => {
+      throw new AppClientError("trust_unavailable", "the trust documents cannot be read");
+    };
+    await expect(gate.signatureFor(call)).rejects.toMatchObject({ code: "trust_unavailable" });
+    clavis.app.verifier.verifyReceipt = verifyReceipt;
+    const signature = signed(await gate.signatureFor(call));
+    expect(signature.requestId).toBe(first.requestId);
+  });
+
   it("keeps a request for another signer apart", async () => {
     const { clavis, gate } = setup();
     awaiting(await gate.signatureFor(call));
@@ -247,5 +264,8 @@ describe("createSignatureGate", () => {
       expect(() => createSignatureGate({ app, store, ...options })).toThrow(/ttlSeconds|pollIntervalMs|returnUrl/);
     }
     expect(() => createSignatureGate({ app, store: undefined as unknown as SignatureStore })).toThrow(/store required/);
+    // A 2.x client has no verifier
+    const { verifier: _, ...older } = app;
+    expect(() => createSignatureGate({ app: older as typeof app, store })).toThrow(/@clavis.nexus\/app 3.0.1 or later/);
   });
 });
