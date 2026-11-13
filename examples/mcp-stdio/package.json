@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@clavis.nexus/app": "^2.1.0",
+    "@clavis.nexus/app": "^3.0.1",
     "@clavis.nexus/manu-propria": "workspace:*",
     "@modelcontextprotocol/server": "2.4.0",
     "zod": "4.6.7"
