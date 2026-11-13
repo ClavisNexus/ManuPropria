@@ -9,7 +9,7 @@ export type {
 export { memoryStore } from "./store.js";
 export type { PendingSignature, SignatureStore } from "./store.js";
 export { verifySignedCall } from "./verify.js";
-export type { ReceiptKeys, VerifySignedCallFailure, VerifySignedCallOptions, VerifySignedCallResult } from "./verify.js";
+export type { VerifySignedCallFailure, VerifySignedCallOptions, VerifySignedCallResult } from "./verify.js";
 export { CALL_MAX_BYTES, CALL_TYPE, isCallDocument, messageDigestOf } from "./call.js";
 export type { Call, CallDocument } from "./call.js";
 export { normalizeShow, SHOW_MAX_LENGTH } from "./show.js";

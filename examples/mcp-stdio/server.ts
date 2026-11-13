@@ -23,7 +23,7 @@ const app = createAppClient({
   apiOrigin: "https://api.clavis.nexus",
   appId: requiredEnv("CLAVIS_APP_ID"),
   operatePrivateJwk: requiredEnv("OPERATE_PRIVATE_JWK"),
-  masterPublicJwkJson: requiredEnv("MASTER_PUBLIC_JWK_JSON"),
+  trustRoot: requiredEnv("CLAVIS_TRUST_ROOT"),
 });
 
 // One process serves one person, so waiting requests can live in this process's memory

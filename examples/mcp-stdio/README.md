@@ -2,7 +2,7 @@
 
 An MCP server over stdio for one user. Its `grant_role` tool changes a member's role in a workspace, and runs only after the user signs the change with their passkey on Clavis.
 
-1. Fill in `.env` from `.env.example`: the app's ID and operate private key from developers, the master public JWK, and the user's ID in the app (`CLAVIS_SIGNER`).
+1. Fill in `.env` from `.env.example`: the app's ID and operate private key from developers, Clavis's Master public JWK (`CLAVIS_TRUST_ROOT`, published on docs.clavis.nexus), and the user's ID in the app (`CLAVIS_SIGNER`).
 2. Build the package and start the server from the repository root:
 
    ```bash

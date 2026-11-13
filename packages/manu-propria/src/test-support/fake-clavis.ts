@@ -2,27 +2,21 @@
  * An in-process stand-in for the Clavis API, shaped like `createAppClient` from `@clavis.nexus/app`.
  * The person's side (opening Connect, signing) is driven by the test.
  */
-import { AppClientError, type AppClient, type AppReceipt, type RegisterGenericSignInput } from "@clavis.nexus/app";
+import {
+  AppClientError,
+  type AppClient,
+  type ReceiptAnchor,
+  type ReceiptEnvelope,
+  type RegisterGenericSignInput,
+  type VerifiedReceipt,
+  type Verifier,
+  type VerifyReceiptOptions,
+} from "@clavis.nexus/app";
 import { exportJWK, generateKeyPair, type JWK } from "jose";
 import { canonicalJson } from "../json.js";
 
 export const APP_ID = "550e8400-e29b-41d4-a716-446655440000";
 export const RECEIPT_KID = "clavis-sign-receipt";
-
-export const APP_DIMENSION = {
-  type: "dimension@1",
-  name: "app",
-  statements: ["app.sign@1"],
-  suites: ["webauthn@1"],
-  signer: "pairwise",
-  sessions: ["app", "portal"],
-  rp: "platform",
-  freshness: 600,
-  single_use: true,
-  ext: { required: ["shown@1"], allowed: ["shown@1"] },
-  receipts: ["app", "holder"],
-  key_log: false,
-};
 
 function b64u(bytes: Uint8Array): string {
   let s = "";
@@ -30,12 +24,19 @@ function b64u(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+function fromB64u(text: string): Uint8Array<ArrayBuffer> {
+  const s = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i += 1) bytes[i] = s.charCodeAt(i);
+  return bytes;
+}
+
 async function digestOf(value: unknown): Promise<string> {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalJson(value)));
   return `sha256:${b64u(new Uint8Array(hash))}`;
 }
 
-export type ReceiptKey = { privateJwk: JWK; publicJwk: JWK; keys: Map<string, JWK> };
+export type ReceiptKey = { privateJwk: JWK; publicJwk: JWK };
 
 export async function receiptKey(kid = RECEIPT_KID): Promise<ReceiptKey> {
   const pair = await generateKeyPair("ES256", { extractable: true });
@@ -43,48 +44,123 @@ export async function receiptKey(kid = RECEIPT_KID): Promise<ReceiptKey> {
   const publicJwk: JWK = { ...(await exportJWK(pair.publicKey)), kid, alg: "ES256" };
   privateJwk.kid = kid;
   privateJwk.alg = "ES256";
-  return { privateJwk, publicJwk, keys: new Map([[kid, publicJwk]]) };
+  return { privateJwk, publicJwk };
 }
 
-/** A `receipt.app@1` shaped like Clavis's, countersigned with `key` when one is given. */
+type ReceiptBody = {
+  type: "receipt.app@1";
+  statement: { type: string; request: string; app: string; digest: string };
+  envelope: ReceiptEnvelope;
+  proof: string;
+  dimension: { type: string; name: string };
+};
+
+type ReceiptJson = ReceiptBody & { attestations: { type: "accepted@1"; at: number; kid: string; alg: "ES256"; sig: string }[] };
+
+/**
+ * A `receipt.app@1` string shaped like Clavis's, countersigned with `key` over the canonical body. The real one is
+ * checked by the Collatio verifier against Clavis's trust documents; `fakeVerifier` checks this one with `key`.
+ */
 export async function appReceipt(input: {
   digest: string;
   signer: string;
   action: string;
+  request: string;
+  key: ReceiptKey;
   iat?: number;
   app?: string;
-  key?: ReceiptKey;
-}): Promise<AppReceipt> {
-  const statement = { type: "app.sign@1", app: input.app ?? APP_ID, digest: input.digest };
-  const body = {
-    type: "receipt.app@1" as const,
+  type?: string;
+}): Promise<string> {
+  const iat = input.iat ?? 1_791_747_759;
+  const statement = { type: input.type ?? "app.sign@1", request: input.request, app: input.app ?? APP_ID, digest: input.digest };
+  const body: ReceiptBody = {
+    type: "receipt.app@1",
     statement,
     envelope: {
       suite: "webauthn@1",
-      dimension: await digestOf(APP_DIMENSION),
-      aud: `app:${statement.app}`,
+      dimension: `sha256:${"D".repeat(43)}`,
+      aud: `request:${input.request}`,
       statement: await digestOf(statement),
       signer: input.signer,
       rp: "clavis.nexus",
-      iat: input.iat ?? 1_791_747_759,
+      iat,
       nonce: "N".repeat(43),
       ext: { "shown@1": { app: "Northwind", host: "app.northwind.example", action: input.action } },
       crit: ["shown@1"],
     },
     proof: `sha256:${"P".repeat(43)}`,
-    dimension: APP_DIMENSION,
-    accepted_at: (input.iat ?? 1_791_747_759) + 2,
+    dimension: { type: "dimension@1", name: "app_sign" },
   };
-  if (!input.key) return { ...body, sigs: [{ kid: RECEIPT_KID, alg: "ES256", sig: "S".repeat(86) }] };
-  const key = await crypto.subtle.importKey(
-    "jwk",
-    input.key.privateJwk as JsonWebKey,
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"],
-  );
+  const key = await crypto.subtle.importKey("jwk", input.key.privateJwk as JsonWebKey, { name: "ECDSA", namedCurve: "P-256" }, false, [
+    "sign",
+  ]);
   const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(canonicalJson(body)));
-  return { ...body, sigs: [{ kid: input.key.publicJwk.kid ?? RECEIPT_KID, alg: "ES256", sig: b64u(new Uint8Array(sig)) }] };
+  const receipt: ReceiptJson = {
+    ...body,
+    attestations: [{ type: "accepted@1", at: iat + 2, kid: input.key.publicJwk.kid ?? RECEIPT_KID, alg: "ES256", sig: b64u(new Uint8Array(sig)) }],
+  };
+  return JSON.stringify(receipt);
+}
+
+const ANCHOR: ReceiptAnchor = {
+  log: "clavis.nexus/ledger/first-party.3",
+  index: 0,
+  origin: "https://trust.clavis.test",
+  leafHash: "L".repeat(43),
+  state: "anchored",
+  size: 1,
+  time: 1_791_747_800,
+};
+
+function refused(reason: string): AppClientError {
+  return new AppClientError("receipt_invalid", `the receipt was refused by the verifier (${reason})`, undefined, { verifierReason: reason });
+}
+
+/**
+ * A stand-in for the verifier of `@clavis.nexus/app`: it accepts receipts countersigned with `key`, refuses the rest
+ * as the real verifier does (`receipt_invalid` with `verifierReason`), and answers as `verifyReceipt` does.
+ */
+export function fakeVerifier(keyOf: ReceiptKey | Promise<ReceiptKey>): Pick<Verifier, "verifyReceipt"> & { reads: VerifyReceiptOptions[] } {
+  const reads: VerifyReceiptOptions[] = [];
+  return {
+    reads,
+    async verifyReceipt(receipt, options = {}) {
+      reads.push(options);
+      const key = await keyOf;
+      let parsed: ReceiptJson;
+      try {
+        parsed = JSON.parse(receipt) as ReceiptJson;
+      } catch {
+        throw refused("json");
+      }
+      const { attestations, ...body } = parsed;
+      const accepted = attestations?.[0];
+      if (!accepted || accepted.kid !== key.publicJwk.kid) throw refused("accepted_kid");
+      const publicKey = await crypto.subtle.importKey("jwk", key.publicJwk as JsonWebKey, { name: "ECDSA", namedCurve: "P-256" }, false, [
+        "verify",
+      ]);
+      const ok = await crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        publicKey,
+        fromB64u(accepted.sig),
+        new TextEncoder().encode(canonicalJson(body)),
+      );
+      if (!ok) throw refused("accepted_sig");
+      if (options.expect?.aud !== undefined && body.envelope.aud !== options.expect.aud) throw refused("expect_aud");
+      const verified: VerifiedReceipt = {
+        receipt,
+        type: body.type,
+        statement: body.statement,
+        envelope: body.envelope,
+        dimension: { digest: body.envelope.dimension, name: body.dimension.name, verifier: `sha256:${"V".repeat(43)}`, registry: `sha256:${"R".repeat(43)}`, signer: "pairwise" },
+        accepted: [{ kid: accepted.kid, at: accepted.at }],
+        anchor: { ...ANCHOR, state: "unanchored", reason: "skipped" },
+        verifier: `sha256:${"V".repeat(43)}`,
+        catalogStale: false,
+      };
+      return verified;
+    },
+  };
 }
 
 export type FakeRequest = {
@@ -106,8 +182,12 @@ export function fakeClavis() {
   let rateLimited = 0;
   let registerError: AppClientError | undefined;
   let onStatusRead: ((request: FakeRequest) => void) | undefined;
+  // Clavis's receipt key, made once per fake
+  const key = receiptKey();
+  const verifier = fakeVerifier(key);
 
-  const app: Pick<AppClient, "registerGenericSign" | "getStatus"> = {
+  const app: Pick<AppClient, "registerGenericSign" | "getStatus"> & { verifier: typeof verifier } = {
+    verifier,
     async registerGenericSign(input) {
       if (registerError) throw registerError;
       const requestId = crypto.randomUUID();
@@ -136,15 +216,19 @@ export function fakeClavis() {
         throw new AppClientError("digest_mismatch", "attested message_digest does not match registration digest");
       }
       const signer = request.signedBy ?? request.input.allowedSub ?? "anyone";
-      const receipt = await appReceipt({ digest, signer, action: request.shownAction ?? request.input.displayHint ?? "" });
+      const iat = 1_791_747_759;
+      const action = request.shownAction ?? request.input.displayHint ?? "";
+      const receipt = await appReceipt({ digest, signer, action, request: requestId, iat, key: await key });
+      // The client reads these from the verifier's answer for that receipt
       return {
         state: "completed",
         intentType: "generic_sign",
         statementType: "app.sign@1",
         messageDigest: digest,
         sub: signer,
-        signedAt: receipt.envelope.iat,
+        signedAt: iat,
         receipt,
+        anchor: ANCHOR,
       };
     },
   };

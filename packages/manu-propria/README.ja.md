@@ -40,7 +40,7 @@ const app = createAppClient({
   apiOrigin: "https://api.clavis.nexus",
   appId: process.env.CLAVIS_APP_ID!,
   operatePrivateJwk: process.env.OPERATE_PRIVATE_JWK!,
-  masterPublicJwkJson: process.env.MASTER_PUBLIC_JWK_JSON!,
+  trustRoot: process.env.CLAVIS_TRUST_ROOT!, // Clavis の Master 公開 JWK（docs.clavis.nexus に載っています）
 });
 const gate = createSignatureGate({ app, store: memoryStore() });
 
@@ -169,7 +169,7 @@ for (;;) {
 
 | `createSignatureGate` のオプション | 既定 | |
 |---|---|---|
-| `app` | | `createAppClient` のクライアントです（`@clavis.nexus/app` 2.1 以上）。 |
+| `app` | | `createAppClient` のクライアントです（`@clavis.nexus/app` 3.0.1 以上）。 |
 | `store` | | 一つのプロセスなら `memoryStore()` です。[ストア](#ストア)を見てください。 |
 | `ttlSeconds` | `300` | 利用者が署名を始められる時間（60–900 秒）です。300 秒を超えるときは、developers で App の上限を上げます。 |
 | `returnUrl` | なし | 署名のあとに Connect が利用者を戻す先です（確認済みの App ホストの下の https）。省くと利用者は Connect で終わり、エージェントの画面に自分で戻ります。 |
@@ -213,23 +213,26 @@ for (;;) {
   "requestId": "550e8400-e29b-41d4-a716-446655440000",
   "signer": "…",
   "signedAt": 1791747759,
-  "receipt": { "type": "receipt.app@1", "…": "Clavis が副署した受領" }
+  "receipt": "{\"type\":\"receipt.app@1\",…}"
 }
 ```
 
-`verifySignedCall` は、保管した記録を Clavis に問い合わせずに確かめます。文書が署名された digest になること、受領の署名者と一行が文書と同じであること、受領に Clavis の副署があることを見ます。
+`receipt` は Clavis が副署した受領（`receipt.app@1`）で、Clavis が返した文字列のままです。文字列のまま保管します。`JSON.parse` すると重複したキーが一つにまとまり、照合器がそれを拒めなくなります。記録全体を `JSON.stringify` しても受領は崩れません。
+
+`verifySignedCall` は、保管した記録を App の operate 鍵なしで確かめます。文書が署名された digest になること、`@clavis.nexus/app` の照合器が受領をその依頼の App 向けの受領と認めること、受領の署名者と一行が文書と同じであることを見ます。
 
 ```ts
-import { receiptKeysFromJwksDocument, verifySignedJwksDocument } from "@clavis.nexus/app";
+import { createVerifier } from "@clavis.nexus/app";
 import { verifySignedCall } from "@clavis.nexus/manu-propria";
 
-const jwks = await (await fetch("https://api.clavis.nexus/.well-known/jwks.json")).json();
-await verifySignedJwksDocument(jwks, process.env.MASTER_PUBLIC_JWK_JSON!);
-const result = await verifySignedCall(record, { receiptKeys: receiptKeysFromJwksDocument(jwks), appId });
+const verifier = createVerifier({ trustRoot: process.env.CLAVIS_TRUST_ROOT!, apiOrigin: "https://api.clavis.nexus" });
+const result = await verifySignedCall(record, { verifier, appId });
 // { ok: true, signature } または { ok: false, reason, detail? }
 ```
 
-`reason` は `shape`、`document`、`digest`、`signer`、`shown`、`signed_at`、`receipt`（`detail` に受領の検査の結果）のどれかです。受領の形は [受領](https://docs.clavis.nexus/ja/signature#receipt) にあります。
+`createAppClient` のクライアントの `app.verifier` も使えます。照合器は照合面の文書を読みます。台帳の包含証明は取りに行きません。照合面に届かないときなど、照合器が答えられないときは、記録を拒まずに照合器の `AppClientError` を投げます。
+
+`reason` は `shape`、`document`、`digest`、`signer`、`shown`、`signed_at`、`receipt` のどれかです。`receipt` のとき、`detail` は照合器の理由、`type`（App 向けの受領ではない）、`app`（別の App）のどれかです。受領の形は [受領](https://docs.clavis.nexus/ja/signature#receipt) にあります。
 
 ## 待ち時間と上限
 
