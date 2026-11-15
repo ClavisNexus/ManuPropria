@@ -28,7 +28,7 @@ Node.js 24 or later, for both the package and the example, which runs its TypeSc
 `.github/workflows/publish.yml` publishes through npm trusted publishing; no npm token is used. Raise `version` in `packages/manu-propria/package.json` through a pull request to `main`, then, once its checks on `main` have passed, tag the merged commit:
 
 ```bash
-git tag manu-propria-v1.0.1 && git push origin manu-propria-v1.0.1
+git tag manu-propria-v2.0.0 && git push origin manu-propria-v2.0.0
 ```
 
 The workflow stages the package on npm. Before approving it with 2FA under Staged Packages on npmjs.com, check that the commit in the run's summary is on `main` and that the integrity of the `stage` job matches the one npmjs.com shows. The trusted publisher on npm allows staging only.
