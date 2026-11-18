@@ -30,5 +30,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-          WATCH_PATHS: .github .githooks .claude .cursor AGENTS.md CLAUDE.md scripts/release-check.mjs scripts/audit-min-release-age.mjs
+          WATCH_PATHS: .github .githooks .claude .cursor AGENTS.md CLAUDE.md scripts/release-check.mjs scripts/audit-min-release-age.mjs scripts/audit-security.mjs scripts/audit-exceptions.json
         run: bash .github/agent-watch.sh

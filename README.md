@@ -33,6 +33,28 @@ git tag manu-propria-v2.0.0 && git push origin manu-propria-v2.0.0
 
 The workflow stages the package on npm. Before approving it with 2FA under Staged Packages on npmjs.com, check that the commit in the run's summary is on `main` and that the integrity of the `stage` job matches the one npmjs.com shows. The trusted publisher on npm allows staging only.
 
+## Dependency audit
+
+`ci` runs `pnpm run audit:security` (`scripts/audit-security.mjs`) before install and fails on any high or critical advisory `pnpm audit` reports. The daily schedule runs it too.
+
+An advisory with no fixed release cannot be fixed here, and it stops every pull request at the same step. It passes only through an exception in `scripts/audit-exceptions.json`, and only when all of these hold:
+
+- It is not in the published package's dependencies. `pnpm audit --prod` takes no exception and always fails on high or critical
+- No attacker-controlled input reaches it (for example, a build or test tool that only receives values written in this repository)
+- Updating dependencies or `overrides` cannot remove it
+
+An exception names the advisory ID, the package, the exact versions found, the reason, the day it was decided (`decided`) and its last day (`until`, at most 30 days after `decided`). A pull request that adds or extends one weakens a required check, so its description states the reason, the impact and when it comes off, and a maintainer confirms it before merge.
+
+The script fails without applying the exception when:
+
+- `until` has passed. Read the advisory again, then drop or extend the exception
+- A version or package the exception does not name is found
+- A fixed release is published and is older than `minimumReleaseAge` (7 days). Until then it still passes, since the fix cannot be installed yet, and prints the day it can be. After that, update the lockfile and drop the exception
+- No advisory matches the exception any more. Drop it
+- The audit or registry response cannot be read
+
+Test the script with `pnpm run test:scripts` (no install needed).
+
 ## Security
 
 Report a vulnerability to security@clavis.nexus. The policy is at [legal.clavis.nexus/en/security](https://legal.clavis.nexus/en/security).
