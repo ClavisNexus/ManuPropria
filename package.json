@@ -10,7 +10,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "audit:security": "pnpm audit --audit-level high",
+    "test:scripts": "node --test \"scripts/*.test.mjs\"",
+    "audit:security": "node scripts/audit-security.mjs",
     "audit:release-age": "node scripts/audit-min-release-age.mjs"
   }
 }

@@ -1,0 +1,12 @@
+{
+  "exceptions": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "versions": ["4.0.7"],
+      "reason": "No fixed release (<=4.0.7; the upstream fix micromatch/picomatch#194 is not merged). It comes only through the test tool vitest (via vite, tinyglobby and fdir), a devDependency, so the published package does not carry it (pnpm audit --prod finds nothing high). The only glob patterns vitest receives are the ones written in this repository's configs; nothing passes a pattern in from outside.",
+      "decided": "2026-11-18",
+      "until": "2026-12-18"
+    }
+  ]
+}
