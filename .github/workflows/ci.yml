@@ -40,6 +40,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
+      # High and critical advisories; one with no fixed release passes only through scripts/audit-exceptions.json (README)
       - run: pnpm run audit:security
 
   check:
@@ -63,3 +64,4 @@ jobs:
       - run: pnpm --filter @clavis.nexus/manu-propria build
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm run test:scripts
